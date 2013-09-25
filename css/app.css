@@ -1,5 +1,6 @@
 #scratch-container {
 	position: absolute;
+  opacity: 0.6;
 	background: white;
 	bottom: 0;
 	right: 0;

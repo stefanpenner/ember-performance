@@ -100,16 +100,17 @@ Perf.Profiler = Ember.Object.extend({
     return promise.then(function(){
       self.teardown();
     });
-  },
-
-  renderToScratch: function(template, args) {
-    var viewArgs = {templateName: template}
-    var view = Ember.View.create(jQuery.extend(viewArgs, args || {}));
-    view.appendTo('#scratch');
-    return view;
   }
+
+
 });
 
+Perf.Profiler.reopenClass({
+  profilers: [],
+  run: function() {
+    return this.create().profile();
+  }
+});
 
 Perf.Result = Ember.Object.extend({
   init: function() {
@@ -168,3 +169,17 @@ Perf.Job = Ember.Object.extend({
   title: Em.required('You must provide a title for each job.'),
 
 });
+
+/*
+
+Perf.Benchmark = Ember.Object.extend({
+
+  init: function() {
+    this._super();
+    var benchmark = new Benc
+  }
+
+});
+
+*/
+

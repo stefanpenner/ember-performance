@@ -1,8 +1,8 @@
 /**
   Profiles the creation of Ember.Objects.
 **/
-Perf.ObjectCreateProfiler = Perf.Profiler.extend({
-  testCount: 50,
+Perf.ObjectCreateProfiler = Perf.Benchmark.extend({
+  //testCount: 50,
   name: 'Object.create()',
 
   test: function() {

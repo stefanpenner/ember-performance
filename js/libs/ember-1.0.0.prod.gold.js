@@ -8,8 +8,8 @@
 // ==========================================================================
 
 
-// Version: v1.0.0-141-gbeb0e4b
-// Last commit: beb0e4b (2013-09-22 12:04:44 -0400)
+// Version: v1.0.0-148-g60b68ef
+// Last commit: 60b68ef (2013-09-23 18:34:52 -0700)
 
 
 (function() {
@@ -12664,8 +12664,34 @@ Ember.String = {
   capitalize: function(str) {
     return str.charAt(0).toUpperCase() + str.substr(1);
   }
-
 };
+
+if (Ember.FEATURES.isEnabled("string-humanize")) {
+  /**
+    Returns the Humanized form of a string
+
+    Replaces underscores with spaces, and capitializes first character
+    of string. Also strips "_id" suffixes.
+
+    ```javascript
+    'first_name'.humanize()       // 'First name'
+    'user_id'.humanize()          // 'User'
+    ```
+
+    @method humanize
+    @param {String} str The string to humanize.
+    @return {String} The humanized string.
+  */
+
+  Ember.String.humanize = function(str) {
+    return str.replace(/_id$/, '').
+      replace(/_/g, ' ').
+      replace(/^\w/g, function(s){
+        return s.toUpperCase();
+      });
+  };
+}
+
 
 })();
 
@@ -12688,6 +12714,10 @@ var fmt = Ember.String.fmt,
     underscore = Ember.String.underscore,
     capitalize = Ember.String.capitalize,
     classify = Ember.String.classify;
+
+if (Ember.FEATURES.isEnabled("string-humanize")) {
+    var humanize = Ember.String.humanize;
+}
 
 if (Ember.EXTEND_PROTOTYPES === true || Ember.EXTEND_PROTOTYPES.String) {
 
@@ -12780,6 +12810,18 @@ if (Ember.EXTEND_PROTOTYPES === true || Ember.EXTEND_PROTOTYPES.String) {
   String.prototype.capitalize = function() {
     return capitalize(this);
   };
+
+  if (Ember.FEATURES.isEnabled("string-humanize")) {
+    /**
+      See [Ember.String.humanize](/api/classes/Ember.String.html#method_humanize).
+
+      @method humanize
+      @for String
+    */
+    String.prototype.humanize = function() {
+      return humanize(this);
+    };
+  }
 
 }
 
@@ -24025,19 +24067,8 @@ Ember.Handlebars.resolveHash = function(context, hash, options) {
   @param {String} path
   @param {Hash} options
 */
-Ember.Handlebars.registerHelper('helperMissing', function(path) {
+Ember.Handlebars.registerHelper('helperMissing', function(path, options) {
   var error, view = "";
-
-  var options = arguments[arguments.length - 1];
-
-  if (Ember.FEATURES.isEnabled('container-renderables')) {
-    var container = options.data.view.container,
-        helper = container && container.lookup('helper:' + path);
-
-    if (helper) {
-      return helper.apply(this, slice.call(arguments, 1));
-    }
-  }
 
   error = "%@ Handlebars error: Could not find property '%@' on object %@.";
   if (options.data) {
@@ -24156,39 +24187,7 @@ Ember.Handlebars.registerHelper('helperMissing', function(path) {
   @param {String} dependentKeys*
 */
 Ember.Handlebars.registerBoundHelper = function(name, fn) {
-  var boundHelperArgs = slice.call(arguments, 1),
-      boundFn = Ember.Handlebars.makeBoundHelper.apply(this, boundHelperArgs);
-  Ember.Handlebars.registerHelper(name, boundFn);
-};
-
-/**
-  @private
-
-  A (mostly) private helper function to `registerBoundHelper`. Takes the
-  provided Handlebars helper function fn and returns it in wrapped
-  bound helper form.
-
-  The main use case for using this outside of `registerBoundHelper`
-  is for registering helpers on the container:
-
-  ```js
-  var boundHelperFn = Ember.Handlebars.makeBoundHelper(function(word) {
-    return word.toUpperCase();
-  });
-
-  container.register('helper:my-bound-helper', boundHelperFn);
-  ```
-
-  In the above example, if the helper function hadn't been wrapped in
-  `makeBoundHelper`, the registered helper would be unbound.
-
-  @method makeBoundHelper
-  @for Ember.Handlebars
-  @param {Function} function
-  @param {String} dependentKeys*
-*/
-Ember.Handlebars.makeBoundHelper = function(fn) {
-  var dependentKeys = slice.call(arguments, 1);
+  var dependentKeys = slice.call(arguments, 2);
 
   function helper() {
     var properties = slice.call(arguments, 0, -1),
@@ -24299,7 +24298,7 @@ Ember.Handlebars.makeBoundHelper = function(fn) {
   }
 
   helper._rawFunction = fn;
-  return helper;
+  Ember.Handlebars.registerHelper(name, helper);
 };
 
 /**
@@ -25015,7 +25014,7 @@ function simpleBind(property, options) {
 /**
   @private
 
-  '_triageMustache' is used internally select between a binding, helper, or component for
+  '_triageMustache' is used internally select between a binding and helper for
   the given context. Until this point, it would be hard to determine if the
   mustache is a property reference or a regular helper reference. This triage
   helper resolves that.
@@ -25030,47 +25029,12 @@ function simpleBind(property, options) {
 */
 EmberHandlebars.registerHelper('_triageMustache', function(property, fn) {
 
-
   if (helpers[property]) {
     return helpers[property].call(this, fn);
   }
-
-  if (Ember.FEATURES.isEnabled('container-renderables')) {
-    var options = arguments[arguments.length - 1],
-        container = options.data.view.container,
-        helper = container && property && container.lookup('helper:' + property);
-
-    if (helper) {
-      return helper.call(this, fn);
-    }
-
-    if (property.indexOf('-') !== -1) {
-
-      var fullName = 'component:' + property,
-          templateFullName = 'template:components/' + property,
-          templateRegistered = container && container.has(templateFullName);
-
-      if (templateRegistered) {
-        container.injection(fullName, 'layout', templateFullName);
-      }
-
-      var Component = container.lookupFactory(fullName);
-
-      // Only treat as a component if either the component
-      // or a template has been registered.
-      if (templateRegistered || Component) {
-        if (!Component) {
-          container.register(fullName, Ember.Component);
-          Component = container.lookupFactory(fullName);
-        }
-
-        Ember.Handlebars.helper(property, Component);
-        return helpers[property].call(this, fn);
-      }
-    }
+  else {
+    return helpers.bind.apply(this, arguments);
   }
-
-  return helpers.bind.apply(this, arguments);
 });
 
 /**
@@ -31333,11 +31297,13 @@ Ember.Route = Ember.Object.extend(Ember.ActionHandler, {
   activate: Ember.K,
 
   /**
-    Transition into another route. Optionally supply a model for the
-    route in question. The model will be serialized into the URL
-    using the `serialize` hook.
+    Transition into another route. Optionally supply model(s) for the
+    route in question. If multiple models are supplied they will be applied
+    last to first recursively up the resource tree (see Multiple Models Example
+    below). The model(s) will be serialized into the URL using the appropriate 
+    route's `serialize` hook. See also 'replaceWith'.
 
-    Example
+    Simple Transition Example
 
     ```javascript
     App.Router.map(function() {
@@ -31358,9 +31324,31 @@ Ember.Route = Ember.Object.extend(Ember.ActionHandler, {
     });
     ```
 
+    Multiple Models Example
+
+    ```javascript
+    App.Router.map(function() {
+      this.route("index");
+      this.resource('breakfast', {path:':breakfastId'}, function(){
+        this.resource('cereal', {path: ':cerealId'});
+      });
+    });
+
+    App.IndexRoute = Ember.Route.extend({
+      actions: {
+        moveToChocolateCereal: function(){
+          var cereal = { cerealId: "ChocolateYumminess"},
+              breakfast = {breakfastId: "CerealAndMilk"};
+
+          this.transitionTo('cereal', breakfast, cereal);
+        }
+      }
+    });
+
     @method transitionTo
     @param {String} name the name of the route
-    @param {...Object} models
+    @param {...Object} models the model(s) to be used while transitioning
+    to the route.
   */
   transitionTo: function(name, context) {
     var router = this.router;
@@ -31368,8 +31356,10 @@ Ember.Route = Ember.Object.extend(Ember.ActionHandler, {
   },
 
   /**
-    Transition into another route while replacing the current URL if
-    possible. Identical to `transitionTo` in all other respects.
+    Transition into another route while replacing the current URL, if possible.
+    This will replace the current history entry instead of adding a new one. 
+    Beside that, it is identical to `transitionTo` in all other respects. See
+    'transitionTo' for additional information regarding multiple models.
 
     Example
 
@@ -31390,7 +31380,8 @@ Ember.Route = Ember.Object.extend(Ember.ActionHandler, {
 
     @method replaceWith
     @param {String} name the name of the route
-    @param {...Object} models
+    @param {...Object} models the model(s) to be used while transitioning
+    to the route.
   */
   replaceWith: function() {
     var router = this.router;
@@ -33737,8 +33728,23 @@ Ember.ControllerMixin.reopen({
       aController.transitionToRoute('blogPost', aPost);
     ```
 
+    Multiple models will be applied last to first recursively up the
+    resource tree.
+
+    ```javascript
+
+      this.resource('blogPost', {path:':blogPostId'}, function(){
+        this.resource('blogComment', {path: ':blogCommentId'});
+      });
+      
+      aController.transitionToRoute('blogComment', aPost, aComment);
+    ```
+
+    See also 'replaceRoute'.
+
     @param {String} name the name of the route
-    @param {...Object} models the
+    @param {...Object} models the model(s) to be used while transitioning
+    to the route.
     @for Ember.ControllerMixin
     @method transitionToRoute
   */
@@ -33760,8 +33766,9 @@ Ember.ControllerMixin.reopen({
   },
 
   /**
-    Alternative to `transitionToRoute`.  Transition the application into another route. The route may
-    be either a single route or route path:
+    Transition into another route while replacing the current URL, if possible.
+    This will replace the current history entry instead of adding a new one. 
+    Beside that, it is identical to `transitionToRoute` in all other respects.
 
     ```javascript
       aController.replaceRoute('blogPosts');
@@ -33776,8 +33783,21 @@ Ember.ControllerMixin.reopen({
       aController.replaceRoute('blogPost', aPost);
     ```
 
+    Multiple models will be applied last to first recursively up the
+    resource tree.
+
+    ```javascript
+
+      this.resource('blogPost', {path:':blogPostId'}, function(){
+        this.resource('blogComment', {path: ':blogCommentId'});
+      });
+      
+      aController.replaceRoute('blogComment', aPost, aComment);
+    ```
+
     @param {String} name the name of the route
-    @param {...Object} models the
+    @param {...Object} models the model(s) to be used while transitioning
+    to the route.
     @for Ember.ControllerMixin
     @method replaceRoute
   */
@@ -35318,7 +35338,7 @@ var Application = Ember.Application = Ember.Namespace.extend(Ember.DeferredMixin
     Call `advanceReadiness` after any asynchronous setup logic has completed.
     Each call to `deferReadiness` must be matched by a call to `advanceReadiness`
     or the application will never become ready and routing will not begin.
-
+    
     @method advanceReadiness
     @see {Ember.Application#deferReadiness}
   */
@@ -35678,7 +35698,6 @@ Ember.Application.reopenClass({
     container.optionsForType('component', { singleton: false });
     container.optionsForType('view', { singleton: false });
     container.optionsForType('template', { instantiate: false });
-    container.optionsForType('helper', { instantiate: false });
     container.register('application:main', namespace, { instantiate: false });
 
     container.register('controller:basic', Ember.Controller, { instantiate: false });

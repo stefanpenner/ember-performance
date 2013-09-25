@@ -8,6 +8,7 @@
 </head>
 <body>
 
+<script src="js/libs/benchmark.js"></script>
 <script src="js/libs/jquery-1.9.1.js"></script>
 <script src="js/libs/handlebars-1.0.0.js"></script>
 <script src="js/libs/ember-1.0.0.prod.js"></script>
@@ -16,6 +17,11 @@
 <script src="js/profilers/object_create.js"></script>
 <script src="js/profilers/render_list.js"></script>
 <script src="js/profilers/template_binding.js"></script>
+<script src="js/profilers/template_binding_container_renderables.js"></script>
+<script src="js/profilers/mucho_template_binding.js"></script>
+<script src="js/profilers/mucho_template_binding_container_renderables.js"></script>
+<script src="js/profilers/mucho_template_binding_container_renderables_half.js"></script>
+<script src="js/profilers/mucho_template_binding_container_renderables_all.js"></script>
 <script src="js/profilers/html_binding.js"></script>
 <script src="js/helpers.js"></script>
 
@@ -25,6 +31,13 @@
     <li>{{this}}</li>
   {{/each}}
   </ul>
+</script>
+
+<script type="text/x-handlebars" data-template-name="containerRenderables">
+    {{alex}} {{is}} {{quite}} {{the}} {{awesome}} 
+    {{alex}} {{is}} {{quite}} {{the}} {{awesome}}
+    {{alex}} {{is}} {{quite}} {{the}} {{awesome}}
+    {{alex}} {{is}} {{quite}} {{the}} {{awesome}}
 </script>
 
 <script type="text/x-handlebars" data-template-name="htmlBindings">
@@ -41,10 +54,9 @@
   <div class="container">
     <h1>Ember Performance Suite</h1>
 
-    <button {{action profObjectCreate}} {{bindAttr disabled="profiling"}} class="btn">Object.create()</button>
-    <button {{action profRenderList}} {{bindAttr disabled="profiling"}} class="btn">Render List of Items</button>
-    <button {{action profTemplateBindings}} {{bindAttr disabled="profiling"}} class="btn">Template Bindings</button>
-    <button {{action profHtmlBindings}} {{bindAttr disabled="profiling"}} class="btn">HTML Bindings</button>
+    {{#each profilers}}
+      <button {{action 'runProfiler' profiler}} {{bindAttr disabled="controller.profiling"}} class="btn">{{name}}</button>
+    {{/each}}
 
     <div style='min-height:30px; margin-top: 10px;'>
       {{#if profiling}}
@@ -52,24 +64,28 @@
       {{/if}}
     </div>
 
-    {{#if results}}
+    {{#if testRuns}}
       <h3>Results</h3>
 
       <table class="table">
         <tr>
           <th>Name</th>
+          <th>Cycle</th>
           <th># Runs</th>
           <th>Geometric Mean</th>
           <th>Mean</th>
           <th>Std. Dev</th>
         </tr>
-        {{#each results}}
+        {{#each testRuns}}
         <tr>
-          <td>{{name}}</td>
-          <td>{{times.length}}</td>
-          <td>{{time geometricMean}}</td>
-          <td>{{time mean}}</td>
-          <td>{{time standardDeviation}}</td>
+          <td>
+            {{name}}
+          </td>
+          <td>{{benchmark.cycles}}</td>
+          <td>{{benchmark.count}}</td>
+          <td>{{time benchmark.stats.mean}}</td>
+          <td>{{time benchmark.stats.mean}}</td>
+          <td>{{time benchmark.stats.deviation}}</td>
         </tr>
         {{/each}}
       </table>
